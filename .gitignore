@@ -80,3 +80,7 @@ pids/
 *.pid
 *.seed
 *.pid.lock
+
+# WhatsApp Gateway data
+sessions/
+media/
