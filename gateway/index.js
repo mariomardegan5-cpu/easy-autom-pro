@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const fs = require('fs');
@@ -12,7 +13,7 @@ const {
   isJidGroup,
 } = require('@whiskeysockets/baileys');
 const pino = require('pino');
-const boom = require('@hapi/boom');
+const { Boom } = require('@hapi/boom');
 
 // Initialize Express app
 const app = express();
@@ -29,12 +30,20 @@ const config = {
   mediaDir: path.join(__dirname, '../media'),
   maxRetries: 5,
   retryDelay: 3000,
+  pairingMode: process.env.PAIRING_MODE || 'qr', // 'qr' or 'code'
+  phoneNumber: process.env.PHONE_NUMBER || null,
 };
 
 // Ensure directories exist
 [config.sessionDir, config.mediaDir].forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      logger.info(`Created directory: ${dir}`);
+    }
+  } catch (error) {
+    logger.error(`Failed to create directory ${dir}:`, error);
+    throw error;
   }
 });
 
@@ -55,15 +64,19 @@ async function connectToWhatsApp() {
 
     isConnecting = true;
     logger.info('Initializing WhatsApp connection...');
+    logger.info(`Pairing mode: ${config.pairingMode}`);
 
     const { state, saveCreds } = await useMultiFileAuthState(config.sessionDir);
     const { version } = await fetchLatestBaileysVersion();
+
+    // Determine if we should print QR in terminal
+    const shouldPrintQR = config.pairingMode === 'qr';
 
     sock = makeWASocket({
       version,
       logger: pino({ level: 'silent' }),
       auth: state,
-      printQRInTerminal: true,
+      printQRInTerminal: shouldPrintQR,
       generateHighQualityLinkPreview: true,
       shouldIgnoreJid: (jid) => isJidBroadcast(jid),
       syncFullHistory: false,
@@ -79,8 +92,12 @@ async function connectToWhatsApp() {
       const { connection, lastDisconnect, qr, isOnline } = update;
 
       if (qr) {
-        logger.info('QR Code generated - scan to connect');
-        await sendWebhook('qr_generated', { qr });
+        if (config.pairingMode === 'qr') {
+          logger.info('QR Code generated - scan to connect');
+          await sendWebhook('qr_generated', { qr });
+        } else {
+          logger.info('QR Code available but pairing mode is set to code');
+        }
       }
 
       if (connection === 'connecting') {
@@ -101,12 +118,19 @@ async function connectToWhatsApp() {
 
       if (connection === 'close') {
         isConnecting = false;
-        const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+        const reason = lastDisconnect?.error ? new Boom(lastDisconnect.error).output.statusCode : undefined;
+
+        logger.info(`Connection closed with reason: ${reason}`);
 
         if (reason === DisconnectReason.badSession) {
           logger.error('Bad session detected - clearing session');
           sock = null;
-          fs.rmSync(config.sessionDir, { recursive: true, force: true });
+          try {
+            fs.rmSync(config.sessionDir, { recursive: true, force: true });
+            logger.info('Session directory cleared');
+          } catch (err) {
+            logger.error('Failed to clear session directory:', err);
+          }
         } else if (reason === DisconnectReason.connectionClosed) {
           logger.info('Connection closed - reconnecting...');
           await retryConnection();
@@ -119,13 +143,20 @@ async function connectToWhatsApp() {
         } else if (reason === DisconnectReason.loggedOut) {
           logger.error('Logged out - clearing session');
           sock = null;
-          fs.rmSync(config.sessionDir, { recursive: true, force: true });
+          try {
+            fs.rmSync(config.sessionDir, { recursive: true, force: true });
+            logger.info('Session directory cleared after logout');
+          } catch (err) {
+            logger.error('Failed to clear session directory:', err);
+          }
         } else if (reason === DisconnectReason.restartRequired) {
           logger.info('Restart required');
           await retryConnection();
         } else if (reason === DisconnectReason.timedOut) {
           logger.info('Connection timed out - reconnecting...');
           await retryConnection();
+        } else {
+          logger.warn(`Unknown disconnect reason: ${reason}`);
         }
 
         await sendWebhook('connection_close', { reason });
@@ -461,9 +492,83 @@ app.get('/connect', async (req, res) => {
       status: getConnectionStatus(),
     });
   } catch (error) {
+    logger.error('Connection error:', error);
     res.status(500).json({
       success: false,
       error: error.message,
+    });
+  }
+});
+
+/**
+ * POST /pairing-code - Request pairing code for phone number
+ * Body: { "phoneNumber": "5511999999999" }
+ * Response: { "success": true, "code": "ABCD1234" }
+ */
+app.post('/pairing-code', async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+
+    if (!phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required field: phoneNumber',
+      });
+    }
+
+    // Validate phone number format (should be digits only)
+    const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
+    if (!cleanPhoneNumber || cleanPhoneNumber.length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid phone number format. Use format: 5511999999999 (country code + number)',
+      });
+    }
+
+    // Check if already connected
+    if (sock?.user?.id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Already connected. Disconnect first to pair a new device.',
+      });
+    }
+
+    // Initialize connection if not already started
+    if (!sock) {
+      logger.info('Initializing connection for pairing code...');
+      await connectToWhatsApp();
+      
+      // Wait a bit for the socket to be ready
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
+    if (!sock) {
+      throw new Error('Failed to initialize WhatsApp connection');
+    }
+
+    logger.info(`Requesting pairing code for: ${cleanPhoneNumber}`);
+    
+    // Request pairing code
+    const code = await sock.requestPairingCode(cleanPhoneNumber);
+    
+    logger.info(`Pairing code generated: ${code}`);
+    
+    await sendWebhook('pairing_code_generated', {
+      phoneNumber: cleanPhoneNumber,
+      code,
+    });
+
+    res.json({
+      success: true,
+      code,
+      phoneNumber: cleanPhoneNumber,
+      message: 'Enter this code in WhatsApp: Settings > Linked Devices > Link a Device > Link with Phone Number',
+    });
+  } catch (error) {
+    logger.error('Error generating pairing code:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to generate pairing code',
     });
   }
 });
