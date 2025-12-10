@@ -20,7 +20,7 @@ const app = express();
 app.use(express.json());
 
 // Logger configuration
-const logger = pino({ level: 'debug' });
+const logger = pino({ level: process.env.LOG_LEVEL || 'debug' });
 
 // Configuration
 const config = {
