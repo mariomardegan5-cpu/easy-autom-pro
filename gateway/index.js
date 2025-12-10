@@ -20,7 +20,7 @@ const app = express();
 app.use(express.json());
 
 // Logger configuration
-const logger = pino({ level: process.env.LOG_LEVEL || 'debug' });
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 // Configuration
 const config = {
@@ -32,6 +32,7 @@ const config = {
   retryDelay: 3000,
   pairingMode: process.env.PAIRING_MODE || 'qr', // 'qr' or 'code'
   phoneNumber: process.env.PHONE_NUMBER || null,
+  pairingInitDelay: parseInt(process.env.PAIRING_INIT_DELAY) || 2000, // Delay before requesting pairing code
 };
 
 // Ensure directories exist
@@ -516,12 +517,23 @@ app.post('/pairing-code', async (req, res) => {
       });
     }
 
-    // Validate phone number format (should be digits only)
+    // Validate phone number format
     const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
-    if (!cleanPhoneNumber || cleanPhoneNumber.length < 10) {
+    
+    // Phone number should be between 10 and 15 digits (international standard)
+    if (!cleanPhoneNumber || cleanPhoneNumber.length < 10 || cleanPhoneNumber.length > 15) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid phone number format. Use format: 5511999999999 (country code + number)',
+        error: 'Invalid phone number format. Use format: [country code][area code][number] (10-15 digits)',
+      });
+    }
+    
+    // Basic validation for common country codes (1-3 digits)
+    const countryCode = cleanPhoneNumber.substring(0, 3);
+    if (!/^[1-9]\d{0,2}$/.test(countryCode)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid country code. Must start with 1-9.',
       });
     }
 
@@ -539,7 +551,7 @@ app.post('/pairing-code', async (req, res) => {
       await connectToWhatsApp();
       
       // Wait a bit for the socket to be ready
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, config.pairingInitDelay));
     }
 
     if (!sock) {
