@@ -1,377 +1,311 @@
-# WhatsApp Gateway
+# 🚀 WhatsApp Gateway - Easy Robo V2
 
-A robust WhatsApp messaging gateway for the Easy Automation Pro platform, enabling seamless integration of WhatsApp messaging capabilities into your automation workflows.
+Gateway de WhatsApp profissional e estável, utilizando **Baileys** com pareamento via código (sem QR Code). Código em produção validado e blindado contra crashes.
 
-## Table of Contents
+## 📋 Índice
 
-- [Overview](#overview)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [API Reference](#api-reference)
-- [Error Handling](#error-handling)
+- [Visão Geral](#visão-geral)
+- [Características](#características)
+- [Pré-requisitos](#pré-requisitos)
+- [Instalação](#instalação)
+- [Configuração](#configuração)
+- [Deploy no Easypanel](#deploy-no-easypanel)
+- [Conectando via Código de Pareamento](#conectando-via-código-de-pareamento)
+- [API Endpoints](#api-endpoints)
+- [Integração com n8n](#integração-com-n8n)
 - [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
 
-## Overview
+## 🎯 Visão Geral
 
-The WhatsApp Gateway provides a lightweight, easy-to-use interface for sending and receiving WhatsApp messages programmatically. It integrates seamlessly with the Easy Automation Pro platform and supports:
+Este gateway fornece uma interface robusta para enviar e receber mensagens do WhatsApp, integrado perfeitamente com n8n para automações. Utiliza o método de **pareamento por código** (requestPairingCode), eliminando a necessidade de escanear QR Codes.
 
-- Sending text messages
-- Sending media (images, documents, videos, audio)
-- Message scheduling
-- Delivery status tracking
-- Webhook support for incoming messages
-- Rate limiting and throttling
+### Diferencial desta versão:
 
-## Prerequisites
+- ✅ **Pareamento automático por código** após 40 segundos
+- ✅ **API blindada** contra mensagens vazias (anti-crash)
+- ✅ **Reconexão automática** inteligente
+- ✅ **Logs formatados** e informativos
+- ✅ **ES Modules** (código moderno)
+- ✅ **Validado em produção**
 
-Before setting up the WhatsApp Gateway, ensure you have:
+## ✨ Características
 
-- Node.js >= 14.0.0
-- npm >= 6.0.0
-- A WhatsApp Business Account
-- Meta Business Account with WhatsApp API access
-- API credentials (Phone Number ID, Business Account ID, Access Token)
-- A webhook URL for receiving messages (HTTPS)
+- 📱 Envio de mensagens de texto
+- 🔄 Recebimento de mensagens via webhook
+- 🛡️ Proteção contra crash por mensagens vazias
+- 🔐 Autenticação via código de pareamento
+- 🔌 Integração nativa com n8n
+- 📊 Logs claros e informativos
+- 🚀 Reconexão automática
 
-## Installation
+## 📦 Pré-requisitos
 
-### 1. Clone the Repository
+- Node.js 20 ou superior
+- Docker (para deploy no Easypanel)
+- Número de WhatsApp válido
+- Instância n8n (opcional, mas recomendado)
+
+## 🔧 Instalação
+
+### 1. Clone o Repositório
 
 ```bash
 git clone https://github.com/mariomardegan5-cpu/easy-autom-pro.git
 cd easy-autom-pro/gateway
 ```
 
-### 2. Install Dependencies
+### 2. Instale as Dependências
 
 ```bash
 npm install
 ```
 
-### 3. Install the Gateway
+### 3. Configure as Variáveis de Ambiente
+
+Copie o arquivo `.env.example` para `.env` e configure:
 
 ```bash
-npm install easy-autom-pro-gateway
+cp .env.example .env
 ```
 
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file in the `gateway` directory with the following variables:
+Edite o arquivo `.env`:
 
 ```env
-# WhatsApp API Credentials
-WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
-WHATSAPP_BUSINESS_ACCOUNT_ID=your_business_account_id
-WHATSAPP_ACCESS_TOKEN=your_access_token
-
-# Webhook Configuration
-WEBHOOK_URL=https://your-domain.com/webhook
-WEBHOOK_VERIFY_TOKEN=your_verify_token
-
-# Server Configuration
 PORT=3000
-NODE_ENV=production
-
-# Rate Limiting
-RATE_LIMIT_MESSAGES_PER_MINUTE=60
-RATE_LIMIT_WINDOW_MS=60000
-
-# Logging
-LOG_LEVEL=info
+WEBHOOK_MENSAGENS=http://n8n:5678/webhook/whatsapp
+NUMERO_ZAP=5511999999999
 ```
 
-### Obtaining Credentials
+### 4. Execute Localmente
 
-1. **Access Meta Business Suite**: https://business.facebook.com
-2. **Navigate to WhatsApp**: Go to Apps > WhatsApp > Configuration
-3. **Phone Number ID**: Found in API Setup section
-4. **Access Token**: Generate from System User
-5. **Business Account ID**: Available in Account Settings
-
-## Usage
-
-### Basic Setup
-
-```javascript
-const WhatsAppGateway = require('easy-autom-pro-gateway');
-
-const gateway = new WhatsAppGateway({
-  phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
-  accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
-  businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
-});
-
-// Initialize the gateway
-gateway.initialize();
+```bash
+npm start
 ```
 
-### Sending a Text Message
+## ⚙️ Configuração
 
-```javascript
-const message = await gateway.sendMessage({
-  to: '1234567890',
-  text: 'Hello from WhatsApp Gateway!'
-});
+### Variáveis de Ambiente
 
-console.log('Message sent:', message.id);
+| Variável | Descrição | Padrão |
+|----------|-----------|--------|
+| `PORT` | Porta do servidor Express | `3000` |
+| `WEBHOOK_MENSAGENS` | URL do webhook n8n para receber mensagens | `http://n8n:5678/webhook/whatsapp` |
+| `NUMERO_ZAP` | Seu número do WhatsApp (com código do país, sem +) | `551391095649` |
+
+**Importante:** O `NUMERO_ZAP` deve estar no formato internacional sem o sinal de `+`. Exemplo: `5511999999999` (55 = Brasil, 11 = DDD, 999999999 = número).
+
+## 🐳 Deploy no Easypanel
+
+### Checklist de Instalação
+
+- [ ] **1. Criar novo serviço no Easypanel**
+  - Tipo: Docker
+  - Nome: `zap-easy-autom` (ou outro nome de sua preferência)
+
+- [ ] **2. Configurar variáveis de ambiente**
+  ```
+  PORT=3000
+  WEBHOOK_MENSAGENS=http://n8n:5678/webhook/whatsapp
+  NUMERO_ZAP=5511999999999
+  ```
+
+- [ ] **3. Configurar Dockerfile**
+  - Usar o Dockerfile fornecido neste repositório
+  - Path: `/gateway`
+
+- [ ] **4. Configurar volume para persistência de sessão**
+  - Volume: `/app/sessions`
+  - Importante para não perder a sessão após restart
+
+- [ ] **5. Expor a porta 3000**
+
+- [ ] **6. Deploy e aguardar logs**
+
+### Estrutura de Deploy
+
+```yaml
+services:
+  zap-easy-autom:
+    build: ./gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - WEBHOOK_MENSAGENS=http://n8n:5678/webhook/whatsapp
+      - NUMERO_ZAP=5511999999999
+    volumes:
+      - ./sessions:/app/sessions
+    restart: unless-stopped
 ```
 
-### Sending Media
+## 📱 Conectando via Código de Pareamento
 
-```javascript
-// Send an image
-const image = await gateway.sendMedia({
-  to: '1234567890',
-  type: 'image',
-  url: 'https://example.com/image.jpg',
-  caption: 'Check out this image!'
-});
+### Como Funciona
 
-// Send a document
-const document = await gateway.sendMedia({
-  to: '1234567890',
-  type: 'document',
-  url: 'https://example.com/document.pdf',
-  filename: 'report.pdf'
-});
+1. **Inicie o gateway** - O serviço irá iniciar e tentar conectar
+2. **Aguarde 40 segundos** - O código será solicitado automaticamente
+3. **Visualize o código nos logs** - Formato: `XXXX-XXXX`
+4. **No seu WhatsApp:**
+   - Abra o WhatsApp
+   - Vá em `Configurações` > `Aparelhos Conectados`
+   - Clique em `Conectar Aparelho`
+   - Escolha `Conectar com número de telefone`
+   - Digite o código exibido nos logs
+
+### Logs Esperados
+
+```
+🤖 Servidor ON na porta 3000
+🔑 CÓDIGO: 1234-5678
+✅ CONECTADO!
 ```
 
-### Scheduling Messages
+### Primeira Conexão
 
-```javascript
-const scheduled = await gateway.scheduleMessage({
-  to: '1234567890',
-  text: 'This is a scheduled message',
-  scheduledTime: new Date(Date.now() + 3600000) // 1 hour from now
-});
+Na primeira execução:
+1. O sistema aguarda 40 segundos
+2. Solicita o código de pareamento
+3. Exibe o código formatado no console
+4. Aguarda você inserir o código no WhatsApp
 
-console.log('Message scheduled:', scheduled.id);
-```
+### Reconexões
 
-### Webhook Setup
+Após a primeira conexão bem-sucedida:
+- A sessão é salva em `/app/sessions`
+- Reconexões automáticas não precisam de novo código
+- Apenas em caso de logout será necessário novo pareamento
 
-Configure your webhook endpoint to receive incoming messages:
+## 🔌 API Endpoints
 
-```javascript
-const express = require('express');
-const app = express();
+### POST /send-message
 
-app.post('/webhook', express.json(), (req, res) => {
-  const { entry } = req.body;
-  
-  entry.forEach(item => {
-    const changes = item.changes[0].value;
-    const messages = changes.messages;
-    
-    if (messages) {
-      messages.forEach(msg => {
-        console.log('Incoming message:', msg.body);
-        // Handle the incoming message
-      });
-    }
-  });
-  
-  res.sendStatus(200);
-});
+Envia uma mensagem de texto.
 
-app.get('/webhook', (req, res) => {
-  const verify_token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
-  
-  if (verify_token === process.env.WEBHOOK_VERIFY_TOKEN) {
-    res.send(challenge);
-  } else {
-    res.sendStatus(403);
-  }
-});
-
-app.listen(process.env.PORT, () => {
-  console.log('Webhook server running on port', process.env.PORT);
-});
-```
-
-### Checking Message Status
-
-```javascript
-const status = await gateway.getMessageStatus(messageId);
-
-console.log('Message status:', status);
-// Output: { id: 'msg_123', status: 'delivered', timestamp: 1234567890 }
-```
-
-## API Reference
-
-### Gateway Methods
-
-#### `sendMessage(options)`
-
-Send a text message.
-
-**Parameters:**
-- `to` (string): Recipient's phone number (with country code)
-- `text` (string): Message content
-- `replyTo` (string, optional): Message ID to reply to
-
-**Returns:** Promise with message object
-
-#### `sendMedia(options)`
-
-Send media (image, video, document, audio).
-
-**Parameters:**
-- `to` (string): Recipient's phone number
-- `type` (string): Media type ('image', 'video', 'document', 'audio')
-- `url` (string): URL to the media file
-- `caption` (string, optional): Media caption
-- `filename` (string, optional): Filename for documents
-
-**Returns:** Promise with message object
-
-#### `scheduleMessage(options)`
-
-Schedule a message for future delivery.
-
-**Parameters:**
-- `to` (string): Recipient's phone number
-- `text` (string): Message content
-- `scheduledTime` (Date): When to send the message
-
-**Returns:** Promise with scheduled message object
-
-#### `getMessageStatus(messageId)`
-
-Get the delivery status of a message.
-
-**Parameters:**
-- `messageId` (string): ID of the message
-
-**Returns:** Promise with status object
-
-#### `getMetrics(options)`
-
-Get gateway metrics and statistics.
-
-**Parameters:**
-- `startDate` (Date, optional): Start date for metrics
-- `endDate` (Date, optional): End date for metrics
-
-**Returns:** Promise with metrics object
-
-## Error Handling
-
-The gateway throws typed errors that should be caught and handled:
-
-```javascript
-const { 
-  WhatsAppGatewayError, 
-  RateLimitError, 
-  ValidationError,
-  AuthenticationError 
-} = require('easy-autom-pro-gateway');
-
-try {
-  await gateway.sendMessage({ to: '123', text: 'Hello' });
-} catch (error) {
-  if (error instanceof RateLimitError) {
-    console.log('Rate limited. Retry after:', error.retryAfter);
-  } else if (error instanceof ValidationError) {
-    console.log('Invalid input:', error.message);
-  } else if (error instanceof AuthenticationError) {
-    console.log('Authentication failed. Check credentials.');
-  } else {
-    console.log('Gateway error:', error.message);
-  }
+**Request:**
+```json
+{
+  "number": "5511999999999",
+  "text": "Olá! Esta é uma mensagem de teste."
 }
 ```
 
-## Troubleshooting
-
-### Issue: "Invalid Access Token"
-
-**Solution:**
-1. Verify the access token in your `.env` file
-2. Check if the token has expired
-3. Generate a new token from Meta Business Suite
-
-### Issue: "Phone Number Not Registered"
-
-**Solution:**
-1. Ensure the phone number is registered with Meta Business Account
-2. Verify the phone number format includes country code (e.g., 11234567890)
-3. Check that the phone number is in the allowed list
-
-### Issue: "Webhook Not Receiving Messages"
-
-**Solution:**
-1. Verify your webhook URL is HTTPS and publicly accessible
-2. Check the verify token matches in your configuration
-3. Ensure firewall allows incoming requests
-4. Check logs for error details
-
-### Issue: "Rate Limiting"
-
-**Solution:**
-1. Implement exponential backoff for retries
-2. Adjust `RATE_LIMIT_MESSAGES_PER_MINUTE` in environment
-3. Queue messages for batch processing
-4. Contact Meta support for higher rate limits
-
-### Debug Mode
-
-Enable debug logging:
-
-```javascript
-const gateway = new WhatsAppGateway({
-  // ... other options
-  debug: true
-});
+**Response (Sucesso):**
+```json
+{
+  "status": "sucesso"
+}
 ```
 
-## Best Practices
+**Response (Erro - WhatsApp desconectado):**
+```json
+{
+  "error": "WhatsApp desconectado"
+}
+```
 
-1. **Always validate phone numbers** before sending messages
-2. **Use environment variables** for sensitive credentials
-3. **Implement proper error handling** and retry logic
-4. **Monitor rate limits** and adjust accordingly
-5. **Log all messages** for audit trails
-6. **Use webhooks** for real-time updates instead of polling
-7. **Encrypt sensitive data** in transit and at rest
-8. **Test thoroughly** in sandbox mode before production
+**Response (Erro - Faltou texto):**
+```json
+{
+  "error": "Faltou texto"
+}
+```
 
-## Contributing
+### GET /
 
-We welcome contributions! Please follow these steps:
+Health check simples.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes (`git commit -am 'Add your feature'`)
-4. Push to the branch (`git push origin feature/your-feature`)
-5. Open a Pull Request
+**Response:**
+```
+🚀 Gateway EASY ROBO V2 Ativo
+```
 
-## License
+## 🔗 Integração com n8n
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+### Fluxo de Mensagens
 
-## Support
+1. **Cliente envia mensagem no WhatsApp** → Gateway recebe
+2. **Gateway envia para webhook n8n** → n8n processa
+3. **n8n envia resposta para API** → Gateway envia para WhatsApp
 
-For issues, questions, or suggestions:
+### Configuração do Webhook n8n
 
-- **GitHub Issues**: https://github.com/mariomardegan5-cpu/easy-autom-pro/issues
-- **Email**: support@easy-autom-pro.com
-- **Documentation**: https://docs.easy-autom-pro.com
+1. Importe o fluxo `n8n-flows/fluxo_bia_producao_v2.json`
+2. Configure suas credenciais OpenAI
+3. Ative o workflow
+4. O webhook estará disponível em: `http://n8n:5678/webhook/whatsapp`
 
-## Changelog
+### Dados Enviados ao Webhook
 
-### Version 1.0.0 (2025-12-10)
-- Initial release
-- Text message support
-- Media messaging (image, video, document, audio)
-- Message scheduling
-- Webhook support
-- Rate limiting
-- Error handling and logging
+```json
+{
+  "remoteJid": "5511999999999@s.whatsapp.net",
+  "pushName": "Nome do Contato",
+  "message": "Texto da mensagem"
+}
+```
+
+## 🔍 Troubleshooting
+
+### Problema: "WhatsApp desconectado"
+
+**Solução:**
+1. Verifique se o código de pareamento foi inserido corretamente
+2. Aguarde alguns segundos para reconexão automática
+3. Verifique os logs do container
+
+### Problema: "Código não aparece nos logs"
+
+**Solução:**
+1. Aguarde pelo menos 40 segundos após o início
+2. Verifique se a variável `NUMERO_ZAP` está configurada corretamente
+3. Delete a pasta `sessions` e reinicie o serviço
+
+### Problema: "Erro envio"
+
+**Solução:**
+1. Verifique se o número está no formato correto (com @s.whatsapp.net ou sem)
+2. Certifique-se de que o texto não está vazio
+3. Verifique se o WhatsApp está conectado
+
+### Problema: "Sessão perdida após restart"
+
+**Solução:**
+1. Certifique-se de que o volume `/app/sessions` está configurado
+2. Verifique as permissões da pasta
+3. No Easypanel, configure um volume persistente
+
+### Logs Importantes
+
+- `🤖 Servidor ON na porta 3000` - Servidor iniciado
+- `🔑 CÓDIGO: XXXX-XXXX` - Código de pareamento disponível
+- `✅ CONECTADO!` - WhatsApp conectado com sucesso
+- `✅ Enviado para ...` - Mensagem enviada com sucesso
+- `⚠️ Tentativa rejeitada: Texto vazio!` - Proteção anti-crash ativada
+- `⛔ Logout.` - WhatsApp desconectado (requer novo pareamento)
+
+## 🛡️ Segurança
+
+- ✅ Validação de mensagens vazias (anti-crash)
+- ✅ Tratamento de erros robusto
+- ✅ Reconexão automática inteligente
+- ✅ Logs sem informações sensíveis
+- ✅ Sessão criptografada pelo Baileys
+
+## 📝 Notas Importantes
+
+1. **Primeira execução:** Sempre aguarde pelo menos 40 segundos para o código aparecer
+2. **Número no formato internacional:** Sem `+`, apenas dígitos (ex: 5511999999999)
+3. **Volume persistente:** Essencial para manter a sessão após restarts
+4. **Webhook n8n:** Deve estar acessível pela rede do gateway
+5. **Limite de mensagens:** Respeite os limites do WhatsApp para evitar bloqueios
+
+## 📄 Licença
+
+Este projeto é parte do Easy Automation Pro.
+
+## 🤝 Suporte
+
+Para dúvidas ou problemas:
+- Abra uma issue no GitHub
+- Consulte a documentação do Baileys
+- Verifique os logs do container
