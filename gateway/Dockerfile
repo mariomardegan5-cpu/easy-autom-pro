@@ -1,5 +1,8 @@
 FROM node:20-alpine
 
+# Instalar git (necessário para dependências do Baileys)
+RUN apk add --no-cache git
+
 WORKDIR /app
 
 # Copiar arquivos
