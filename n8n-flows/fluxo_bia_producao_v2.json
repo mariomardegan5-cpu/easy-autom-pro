@@ -1,0 +1,83 @@
+{
+  "name": "EASY ROBO - FINAL CORRIGIDO",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "options": {}
+      },
+      "id": "webhook-entrada",
+      "name": "Recebe Mensagem",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "webhookId": "whatsapp"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.all()[0].json;\nconst dados = input.body || input;\nconst msg = dados.message || \"\";\nconst remoteJid = dados.remoteJid || \"\";\nconst pushName = dados.pushName || \"Cliente\";\n\nif (!msg || !remoteJid) return [];\n\nconst idFinal = remoteJid.includes('@') ? remoteJid : `${remoteJid}@s.whatsapp.net`;\n\nconst systemPrompt = `Voce e a BIA, consultora da Easy Autom. Seja profissional, use maximo 1 emoji, respostas curtas. Vende: Chatbots, Automacoes n8n, Recuperacao de Vendas. Sempre termine com uma pergunta.`;\n\nconst userMessage = `Cliente: ${pushName} - Mensagem: ${msg}`;\n\nreturn [{ \n  json: { \n    systemPrompt,\n    userMessage,\n    remoteJid: idFinal\n  } \n}];"
+      },
+      "id": "preparar-dados",
+      "name": "Cerebro da Bia",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [250, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"{{ $json.systemPrompt }}\"},\n    {\"role\": \"user\", \"content\": \"{{ $json.userMessage }}\"}\n  ],\n  \"max_tokens\": 500,\n  \"temperature\": 0.7\n}",
+        "options": {}
+      },
+      "id": "openai-node",
+      "name": "OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [500, 0],
+      "credentials": {
+        "openAiApi": {
+          "id": "HKHSv2FV8fqUZbni",
+          "name": "OpenAi account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://zap-easy-autom:3000/send-message",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Cerebro da Bia').item.json.remoteJid }}\",\n  \"text\": \"{{ $json.choices[0].message.content }}\"\n}",
+        "options": {}
+      },
+      "id": "enviar-zap",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [750, 0]
+    }
+  ],
+  "connections": {
+    "Recebe Mensagem": {
+      "main": [
+        [{"node": "Cerebro da Bia", "type": "main", "index": 0}]
+      ]
+    },
+    "Cerebro da Bia": {
+      "main": [
+        [{"node": "OpenAI", "type": "main", "index": 0}]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [{"node": "Enviar WhatsApp", "type": "main", "index": 0}]
+      ]
+    }
+  }
+}
